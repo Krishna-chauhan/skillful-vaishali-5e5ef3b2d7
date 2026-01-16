@@ -91,7 +91,30 @@ def setup_security_headers_middleware(app: FastAPI) -> FastAPI:
             response.headers["X-Content-Type-Options"] = x_content_type_options_value
 
         if enable_content_security_policy:
-            response.headers["Content-Security-Policy"] = content_security_policy_value
+            # Use more permissive CSP for docs and openapi endpoints to allow Swagger UI
+            path = request.url.path
+            # Check for docs/openapi paths (with or without root_path prefix)
+            is_docs_path = (
+                path in ["/docs", "/openapi.json", "/redoc"] or 
+                path.endswith("/docs") or 
+                path.endswith("/openapi.json") or 
+                path.endswith("/redoc") or
+                path.startswith("/docs/") or
+                "/docs/" in path
+            )
+            
+            if is_docs_path:
+                # Allow Swagger UI resources: CDN scripts/styles, inline scripts, and images
+                csp_for_docs = (
+                    "default-src 'self'; "
+                    "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+                    "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+                    "img-src 'self' data: https://fastapi.tiangolo.com https://cdn.jsdelivr.net; "
+                    "font-src 'self' https://cdn.jsdelivr.net"
+                )
+                response.headers["Content-Security-Policy"] = csp_for_docs
+            else:
+                response.headers["Content-Security-Policy"] = content_security_policy_value
 
         if enable_referer_policy:
             response.headers["Referer-Policy"] = referer_policy_value
